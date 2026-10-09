@@ -1,6 +1,6 @@
 # Qwen3-VL 视觉接入：让座舱从"听懂"到"看懂"
 
-> 智能座舱大模型落地实战系列第 11 篇，多模态系列开篇。纯语音座舱有个天花板：很多"状态"，用户不会自己说出来。这篇讲怎么加视觉，让座舱能"看懂"。
+> 元境智能座舱大模型落地实战系列第 11 篇，多模态系列开篇。纯语音座舱有个天花板：很多"状态"，用户不会自己说出来。这篇讲怎么加视觉，让座舱能"看懂"。
 
 ---
 
@@ -62,6 +62,28 @@
 1. 纯语音够不到"状态"类信息，**加视觉才能做疲劳、分心、儿童遗忘这些安全功能**。
 2. 视觉大模型（Qwen3-VL）**理解 + 推理一体**，比纯检测模型更通用。
 3. **疲劳看闭眼哈欠、分心看视线手机**，判据不同要分开建模。
+
+---
+
+## 附：核心代码
+
+```python
+from transformers import Qwen2VLForConditionalGeneration, Qwen2VLProcessor
+
+def detect_driver_state(image):
+    # 视觉理解 + 推理一体：看图判断疲劳/分心/正常
+    prompt = "识别驾驶员状态：疲劳/分心/正常；并判断后排是否有儿童"
+    inputs = processor(text=prompt, images=image, return_tensors="pt")
+    outputs = model.generate(**inputs, max_new_tokens=64)
+    return processor.decode(outputs[0], skip_special_tokens=True)
+
+def gesture_recognition(frame):
+    # 端侧轻量检测：手势起止帧 + 类型
+    result = edge_gesture_model(frame)   # {"gesture":"切歌","conf":0.9}
+    return result if result["conf"] >= 0.7 else None
+```
+
+关键：云端 Qwen3-VL 做"理解 + 推理"，端侧轻量模型做"实时检测"，端云各管一头。
 
 ---
 

@@ -1,6 +1,6 @@
 # 把 RAG 封装成知识检索 Agent：工具和 Agent 到底怎么选
 
-> 智能座舱大模型落地实战系列第 9 篇。前面写了 RAG（知识底座）和多智能体，这篇讲它们怎么衔接——RAG 是做成"工具"给 Agent 调，还是封装成"知识检索 Agent"接入？这是我实际项目里纠结过的一个设计决策。
+> 元境智能座舱大模型落地实战系列第 9 篇。前面写了 RAG（知识底座）和多智能体，这篇讲它们怎么衔接——RAG 是做成"工具"给 Agent 调，还是封装成"知识检索 Agent"接入？这是我实际项目里纠结过的一个设计决策。
 
 ---
 
@@ -61,6 +61,31 @@ Agent 形式多一跳，座舱对延迟敏感，所以要按场景分流：
 1. RAG 接入多智能体，**底层用 Tool（能力）、上层封装成 Agent（封装）**，两者不矛盾。
 2. 检索逻辑重（改写、多轮、证据整理），**值得用一个专门的知识检索 Agent** 集中管理。
 3. 按延迟敏感度分流：**简单走 Tool、复杂走 Agent**。
+
+---
+
+## 附：核心代码
+
+```python
+# 底层：知识底座通过 MCP 暴露 Tool（能力）
+@mcp.tool()
+def retrieve(query: str) -> list:
+    """从知识底座检索带出处的文档块"""
+    return rag.search(query)
+
+# 上层：知识检索 Agent（封装）——多轮检索、证据整理
+class KnowledgeAgent:
+    def handle(self, request):
+        # 内部调 Tool（MCP），但对外是一个 Agent（A2A 委派）
+        candidates = retrieve(request.query)
+        if request.need_clarify:
+            candidates += retrieve(request.rewritten_query)  # 多轮检索
+        evidence = dedupe_and_rank(candidates)
+        return {"evidence": evidence,
+                "sources": [c["source"] for c in evidence]}
+```
+
+一眼看懂：`retrieve` 是底层能力（Tool），`KnowledgeAgent` 是上层封装（Agent）——"Tool 是能力，Agent 是封装"。
 
 ---
 

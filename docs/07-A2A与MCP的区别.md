@@ -1,6 +1,6 @@
 # A2A 和 MCP 到底什么区别：一个管 Agent 协作，一个管工具调用
 
-> 智能座舱大模型落地实战系列第 7 篇。多智能体开发里，A2A 和 MCP 是两个最容易搞混的协议——名字都带"A"，很多人分不清。这篇一次性说清楚。
+> 元境智能座舱大模型落地实战系列第 7 篇。多智能体开发里，A2A 和 MCP 是两个最容易搞混的协议——名字都带"A"，很多人分不清。这篇一次性说清楚。
 
 ---
 
@@ -64,6 +64,28 @@ A2A 统一了**任务生命周期和产物格式**（task / message / artifact�
 
 - 一个 Agent 要调外部 API/数据源 → **MCP**。
 - 多个 Agent 要分工协作、派活回传 → **A2A**。
+
+---
+
+## 附：核心代码
+
+```python
+# MCP：Agent 调工具（连外部能力）
+@mcp.tool()
+def set_temperature(celsius: int) -> str:
+    """设置空调温度。参数 celsius：16~30"""
+    return car_control.set_ac(celsius)
+
+# A2A：Agent 间委派（中枢 -> 领域 Agent）
+task = a2a_client.send_task(
+    agent="car_control",
+    task={"type": "set_temperature", "payload": {"celsius": 22}},
+)
+# 领域 Agent 做完，通过 A2A 回传产物（artifact）
+result = a2a_client.get_result(task.id)
+```
+
+一眼看懂：`@mcp.tool` 是"给模型接一个函数"；`a2a_client.send_task` 是"把活派给另一个 Agent"。前者连工具，后者连 Agent。
 
 ---
 

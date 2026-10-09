@@ -1,6 +1,6 @@
 # 缺证不作答：用代码闸门治 RAG 幻觉，而不是靠提示词
 
-> 智能座舱大模型落地实战系列第 4 篇。检索做得再准，总会有"知识库里没有"的问题。这时候是让模型硬编一个答案，还是老老实实说"不知道"？这篇讲我怎么用代码守住这条线。
+> 元境智能座舱大模型落地实战系列第 4 篇。检索做得再准，总会有"知识库里没有"的问题。这时候是让模型硬编一个答案，还是老老实实说"不知道"？这篇讲我怎么用代码守住这条线。
 
 ---
 
@@ -61,6 +61,39 @@ RAG 的幻觉，很大一部分不是模型故意撒谎，而是**检索没召�
 1. RAG 幻觉要治，**检索层先用两道关（分数 + 词形）卡住缺证场景**。
 2. **缺证不作答用代码实现，不靠提示词**——硬约束比软约束可靠。
 3. 阈值用评测集标定，**拒答要给用户出路**，别死磕。
+
+---
+
+## 附：核心代码
+
+```python
+def ngram_overlap(a, b, n=2):
+    """2-gram 重合率：判断字面是否真的命中"""
+    ga = {a[i:i+n] for i in range(len(a)-n+1)}
+    gb = {b[i:i+n] for i in range(len(b)-n+1)}
+    if not gb:
+        return 0.0
+    return len(ga & gb) / len(gb)
+
+def no_evidence_gate(query, candidates, score_th=0.6, overlap_th=0.1):
+    # 第一道关：分数关（相似度阈值）
+    scored = [c for c in candidates if c["score"] >= score_th]
+    if not scored:
+        return None
+    # 第二道关：词形关（2-gram 重合率）
+    scored = [c for c in scored if ngram_overlap(query, c["text"]) >= overlap_th]
+    if not scored:
+        return None
+    return scored
+
+def answer(query, candidates):
+    evidence = no_evidence_gate(query, candidates)
+    if evidence is None:
+        return "这个问题我暂时查不到，换个问法试试？"  # 缺证不作答
+    return llm_generate(query, evidence)
+```
+
+关键：两道关都是代码硬闸门，没证据就不进生成环节——不依赖提示词、不依赖模型"自觉"。
 
 ---
 

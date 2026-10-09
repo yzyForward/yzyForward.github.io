@@ -1,7 +1,7 @@
 ---
 layout: home
 hero:
-  name: 智能座舱大模型落地实战
+  name: 元境智能座舱大模型落地实战
   text: RAG / Multi-Agent / 多模态
   tagline: 15 篇工程落地笔记，覆盖座舱大模型从知识底座到多智能体、多模态的完整链路
   actions:

@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitepress'
 
 export default defineConfig({
-  title: '智能座舱大模型落地实战',
+  title: '元境智能座舱大模型落地实战',
   description: 'RAG / Multi-Agent / 多模态的工程落地笔记',
   lang: 'zh-CN',
   themeConfig: {
