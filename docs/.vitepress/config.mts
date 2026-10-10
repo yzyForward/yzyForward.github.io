@@ -7,11 +7,19 @@ export default defineConfig({
   themeConfig: {
     nav: [
       { text: '首页', link: '/' },
+      { text: '项目总览', link: '/00-项目总览' },
       { text: 'RAG', link: '/01-座舱知识库父子分块' },
       { text: '多智能体', link: '/06-座舱多智能体架构' },
       { text: '多模态', link: '/11-座舱视觉接入Qwen3-VL' },
     ],
     sidebar: [
+      {
+        text: '项目总览',
+        collapsed: false,
+        items: [
+          { text: '项目总览：完整技术全景', link: '/00-项目总览' },
+        ]
+      },
       {
         text: 'RAG 知识底座',
         collapsed: false,
@@ -38,11 +46,12 @@ export default defineConfig({
         text: '多模态',
         collapsed: false,
         items: [
-          { text: 'Qwen3-VL 视觉接入', link: '/11-座舱视觉接入Qwen3-VL' },
+          { text: '视觉接入的端云拆分', link: '/11-座舱视觉接入Qwen3-VL' },
           { text: '跨模态消解', link: '/12-座舱跨模态消解' },
-          { text: '端侧 7B 量化蒸馏', link: '/13-座舱端侧7B量化蒸馏' },
+          { text: '端侧 Qwen2.5-Omni-7B 量化蒸馏', link: '/13-座舱端侧7B量化蒸馏' },
           { text: '生物信息不出车', link: '/14-生物信息不出车' },
           { text: '误报率优化', link: '/15-座舱疲劳检测误报率优化' },
+          { text: '世界模型基础', link: '/16-世界模型基础' },
         ]
       },
     ],

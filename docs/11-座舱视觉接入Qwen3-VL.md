@@ -1,4 +1,4 @@
-# Qwen3-VL 视觉接入：让座舱从"听懂"到"看懂"
+# 座舱视觉的端云拆分：端侧 Qwen2.5-Omni-7B + 云端 Qwen3-VL
 
 > 元境智能座舱大模型落地实战系列第 11 篇，多模态系列开篇。纯语音座舱有个天花板：很多"状态"，用户不会自己说出来。这篇讲怎么加视觉，让座舱能"看懂"。
 
@@ -14,15 +14,15 @@
 
 这些"状态"纯语音都拿不到，所以要加**视觉**。加了视觉，座舱从"听懂"升级到"看懂"。
 
-## 二、选型：为什么用 Qwen3-VL
+## 二、端云拆分：谁在端侧、谁在云端
 
-视觉这块我选 **Qwen3-VL**，几个原因：
+视觉任务按"生物信息 + 低延迟"原则拆到端/云两侧：
 
-1. **多模态大模型**：视觉理解 + 推理一体化，看图还能结合上下文推理，不是纯检测模型。
-2. **可端侧部署**：配合量化、蒸馏能压到端侧。
-3. **生态一致**：一路用千问系列，从文本到视觉无缝衔接，调优有积累。
+- **端侧（Qwen2.5-Omni-7B）**：手势识别、疲劳/分心实时初筛、乘员与儿童存在性检测、语音唤醒、轻量意图分类——生物信息本地闭环、150ms 内。
+- **云端（Qwen3-VL）**：只做非敏感视觉——找物品、车外环境理解。
+- **云端（文本 LLM）**：疲劳/分心复核，基于端侧上传的**结构化特征**做时序自洽与上下文校验，**不调 VLM**。
 
-选型逻辑还是那句：先看"能不能满足任务 + 能不能部署 + 生态熟不熟"。
+为什么端侧选 Qwen2.5-Omni-7B？**原生多模态**（文本/图像/音频一个模型统一处理）、7B 量化蒸馏后能塞进车机芯片、和云端千问生态一致、生物信息本地闭环合规。
 
 ## 三、六个识别任务
 
@@ -46,14 +46,13 @@
 
 判据不同，响应也不同——疲劳要提醒休息，分心要提醒看路。如果把"看手机"当成"困"，响应就错了。所以两者要**分开建模**，不能混成一个"驾驶员状态不好"。
 
-## 五、端侧 vs 云端怎么分
+## 五、端云分工小结
 
-视觉任务也走端云协同：
+- **端侧 Qwen2.5-Omni-7B**：实时检测 + 人脸脱敏，生物信息本地闭环。
+- **云端 Qwen3-VL**：非敏感视觉（找物品、车外环境）。
+- **云端文本 LLM**：复核与融合决策。
 
-- **端侧**（轻量检测）：疲劳、手势、乘员的实时检测——低延迟、生物信息不出车，150ms 内。
-- **云端**（Qwen3-VL 大模型）：复杂视觉理解、多轮推理、多模态融合。
-
-端侧管"实时和隐私"，云端管"复杂和精准"。
+端侧管"实时和隐私"，云端管"复杂和非敏感视觉"。
 
 ## 六、总结
 
@@ -68,22 +67,24 @@
 ## 附：核心代码
 
 ```python
-from transformers import Qwen2VLForConditionalGeneration, Qwen2VLProcessor
+# 端侧：Qwen2.5-Omni-7B 做实时初筛（文本+图像+音频统一处理）
+def edge_detect(frame, audio=None):
+    prompt = "判断驾驶员状态(疲劳/分心/正常)并检测后排是否有儿童"
+    result = edge_omni(prompt, images=frame, audio=audio)
+    return result   # {"state":"疲劳","conf":0.8,"child_present":False}
 
-def detect_driver_state(image):
-    # 视觉理解 + 推理一体：看图判断疲劳/分心/正常
-    prompt = "识别驾驶员状态：疲劳/分心/正常；并判断后排是否有儿童"
-    inputs = processor(text=prompt, images=image, return_tensors="pt")
-    outputs = model.generate(**inputs, max_new_tokens=64)
-    return processor.decode(outputs[0], skip_special_tokens=True)
+# 云端：Qwen3-VL 只做非敏感视觉（找物品，帧已经过人脸脱敏）
+def cloud_find_object(frame):
+    prompt = "识别画面中的物品（开放词汇）"
+    return cloud_vlm(prompt, images=frame)
 
-def gesture_recognition(frame):
-    # 端侧轻量检测：手势起止帧 + 类型
-    result = edge_gesture_model(frame)   # {"gesture":"切歌","conf":0.9}
-    return result if result["conf"] >= 0.7 else None
+# 云端：文本 LLM 做疲劳/分心复核（不看原始图像，只吃结构化特征）
+def cloud_verify(edge_features):
+    prompt = f"基于结构化特征做时序自洽校验：{edge_features}"
+    return text_llm(prompt)
 ```
 
-关键：云端 Qwen3-VL 做"理解 + 推理"，端侧轻量模型做"实时检测"，端云各管一头。
+关键：端侧 Qwen2.5-Omni-7B 管"实时 + 生物信息"，云端 Qwen3-VL 只碰非敏感视觉、文本 LLM 只吃结构化特征做复核——三路各司其职。
 
 ---
 
