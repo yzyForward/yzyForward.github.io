@@ -67,30 +67,41 @@ RAG 的幻觉，很大一部分不是模型故意撒谎，而是**检索没召�
 ## 附：核心代码
 
 ```python
-def ngram_overlap(a, b, n=2):
-    """2-gram 重合率：判断字面是否真的命中"""
+"""缺证不作答（脱敏示意）"""
+from dataclasses import dataclass
+
+@dataclass
+class GateConfig:
+    score_th: float = 0.6        # 分数关阈值
+    overlap_th: float = 0.1      # 词形关阈值（2-gram 重合率）
+
+def ngram_overlap(a: str, b: str, n: int = 2) -> float:
+    """2-gram 重合率：戳破'语义沾边但无关'的假阳性"""
+    if len(a) < n or len(b) < n:
+        return 0.0
     ga = {a[i:i+n] for i in range(len(a)-n+1)}
     gb = {b[i:i+n] for i in range(len(b)-n+1)}
     if not gb:
         return 0.0
     return len(ga & gb) / len(gb)
 
-def no_evidence_gate(query, candidates, score_th=0.6, overlap_th=0.1):
+def no_evidence_gate(query, candidates, cfg: GateConfig = GateConfig()):
     # 第一道关：分数关（相似度阈值）
-    scored = [c for c in candidates if c["score"] >= score_th]
+    scored = [c for c in candidates if c["score"] >= cfg.score_th]
     if not scored:
         return None
     # 第二道关：词形关（2-gram 重合率）
-    scored = [c for c in scored if ngram_overlap(query, c["text"]) >= overlap_th]
-    if not scored:
-        return None
-    return scored
+    scored = [c for c in scored
+              if ngram_overlap(query, c["text"]) >= cfg.overlap_th]
+    return scored or None
 
 def answer(query, candidates):
     evidence = no_evidence_gate(query, candidates)
     if evidence is None:
-        return "这个问题我暂时查不到，换个问法试试？"  # 缺证不作答
-    return llm_generate(query, evidence)
+        # 拒答 + 给出路：相近候选让用户选
+        near = suggest_nearby(candidates)
+        return {"answer": "这个问题我暂时查不到", "suggestions": near}
+    return {"answer": llm_generate(query, evidence), "sources": evidence}
 ```
 
 关键：两道关都是代码硬闸门，没证据就不进生成环节——不依赖提示词、不依赖模型"自觉"。

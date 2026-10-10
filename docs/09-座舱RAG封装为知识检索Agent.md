@@ -67,22 +67,37 @@ Agent 形式多一跳，座舱对延迟敏感，所以要按场景分流：
 ## 附：核心代码
 
 ```python
+"""RAG 封装为知识检索 Agent（脱敏示意）"""
+
 # 底层：知识底座通过 MCP 暴露 Tool（能力）
-@mcp.tool()
+@server.tool()
 def retrieve(query: str) -> list:
     """从知识底座检索带出处的文档块"""
     return rag.search(query)
 
 # 上层：知识检索 Agent（封装）——多轮检索、证据整理
 class KnowledgeAgent:
-    def handle(self, request):
-        # 内部调 Tool（MCP），但对外是一个 Agent（A2A 委派）
+    def __init__(self):
+        self.max_rounds = 3   # 多轮检索上限，防死循环
+
+    def handle(self, request) -> dict:
         candidates = retrieve(request.query)
-        if request.need_clarify:
-            candidates += retrieve(request.rewritten_query)  # 多轮检索
+        # 多轮检索：证据不足时改写查询再查，直到够用或达上限
+        for _ in range(self.max_rounds):
+            if self._sufficient(candidates):
+                break
+            req2 = self._rewrite(request.query, candidates)
+            candidates += retrieve(req2)
         evidence = dedupe_and_rank(candidates)
         return {"evidence": evidence,
-                "sources": [c["source"] for c in evidence]}
+                "sources": [c["source"] for c in evidence],
+                "trace": request.trace_id}
+
+    def _sufficient(self, candidates) -> bool:
+        return bool(candidates) and candidates[0]["score"] >= 0.7
+
+    def _rewrite(self, query, candidates):
+        return llm(f"证据不足，改写查询以补齐信息：{query}")
 ```
 
 一眼看懂：`retrieve` 是底层能力（Tool），`KnowledgeAgent` 是上层封装（Agent）——"Tool 是能力，Agent 是封装"。

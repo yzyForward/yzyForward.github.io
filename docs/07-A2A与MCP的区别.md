@@ -70,19 +70,38 @@ A2A 统一了**任务生命周期和产物格式**（task / message / artifact�
 ## 附：核心代码
 
 ```python
-# MCP：Agent 调工具（连外部能力）
-@mcp.tool()
+"""MCP vs A2A（脱敏示意）"""
+
+# ── MCP：Agent 调工具（连外部能力）──
+from mcp.server import Server
+
+server = Server("cockpit-tools")
+
+@server.tool()
 def set_temperature(celsius: int) -> str:
     """设置空调温度。参数 celsius：16~30"""
+    if not 16 <= celsius <= 30:
+        return "参数越界：celsius 需在 16~30"
     return car_control.set_ac(celsius)
 
-# A2A：Agent 间委派（中枢 -> 领域 Agent）
-task = a2a_client.send_task(
+@server.tool()
+def navigate_to(destination: str) -> str:
+    """设置导航目的地"""
+    return navigation.start_route(destination)
+
+# ── A2A：Agent 间委派（中枢 -> 领域 Agent）──
+from a2a import A2AClient
+
+client = A2AClient()
+
+# 派活：统一 task / message / artifact 结构
+task = client.send_task(
     agent="car_control",
     task={"type": "set_temperature", "payload": {"celsius": 22}},
+    timeout=2.0,
 )
 # 领域 Agent 做完，通过 A2A 回传产物（artifact）
-result = a2a_client.get_result(task.id)
+result = client.get_result(task.id)
 ```
 
 一眼看懂：`@mcp.tool` 是"给模型接一个函数"；`a2a_client.send_task` 是"把活派给另一个 Agent"。前者连工具，后者连 Agent。

@@ -67,21 +67,36 @@
 ## 附：核心代码
 
 ```python
+"""座舱视觉端云拆分（脱敏示意）"""
+from dataclasses import dataclass
+
+@dataclass
+class EdgeResult:
+    state: str          # 疲劳/分心/正常
+    conf: float
+    features: dict      # 结构化特征（非原始图像）
+    child_present: bool = False
+
 # 端侧：Qwen2.5-Omni-7B 做实时初筛（文本+图像+音频统一处理）
-def edge_detect(frame, audio=None):
+def edge_detect(frame, audio=None) -> EdgeResult:
     prompt = "判断驾驶员状态(疲劳/分心/正常)并检测后排是否有儿童"
-    result = edge_omni(prompt, images=frame, audio=audio)
-    return result   # {"state":"疲劳","conf":0.8,"child_present":False}
+    raw = edge_omni(prompt, images=frame, audio=audio)
+    return EdgeResult(
+        state=raw["state"], conf=raw["conf"],
+        features=raw["features"], child_present=raw["child_present"],
+    )
 
 # 云端：Qwen3-VL 只做非敏感视觉（找物品，帧已经过人脸脱敏）
-def cloud_find_object(frame):
-    prompt = "识别画面中的物品（开放词汇）"
+def cloud_find_object(frame) -> list:
+    prompt = "识别画面中的物品（开放词汇），输出物品名+位置"
     return cloud_vlm(prompt, images=frame)
 
 # 云端：文本 LLM 做疲劳/分心复核（不看原始图像，只吃结构化特征）
-def cloud_verify(edge_features):
-    prompt = f"基于结构化特征做时序自洽校验：{edge_features}"
-    return text_llm(prompt)
+def cloud_verify(edge: EdgeResult) -> dict:
+    prompt = (f"基于结构化特征做时序自洽校验，判断是否真疲劳："
+              f"state={edge.state}, features={edge.features}")
+    verdict = text_llm(prompt)
+    return {"final_state": verdict, "edge_conf": edge.conf}
 ```
 
 关键：端侧 Qwen2.5-Omni-7B 管"实时 + 生物信息"，云端 Qwen3-VL 只碰非敏感视觉、文本 LLM 只吃结构化特征做复核——三路各司其职。
